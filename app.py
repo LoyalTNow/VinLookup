@@ -9,6 +9,7 @@ st.set_page_config(
     layout="wide"
 )
 
+# Custom CSS for High-Visibility Numbers
 st.markdown("""
 <style>
     [data-testid="stMetricValue"] {
@@ -52,6 +53,7 @@ def decode_vin(vin: str):
     except Exception as e:
         return None, str(e)
 
+# --- Clean Baseline Title & History Checks ---
 def fetch_vinaudit_details():
     return {
         "title_status": "Clean Title (NMVTIS Verified)",
@@ -163,7 +165,9 @@ if "vehicle_data" in st.session_state:
     va_data = st.session_state.get("vinaudit_data", {})
     val = calculate_valuations(vehicle, mileage_input)
 
+    # -------------------------------------------------------------
     # 1. VEHICLE HEADER
+    # -------------------------------------------------------------
     st.markdown(f"### 📋 {vehicle['year']} {vehicle['make']} {vehicle['model']} {vehicle['trim']}")
     
     h1, h2, h3 = st.columns(3)
@@ -173,23 +177,56 @@ if "vehicle_data" in st.session_state:
 
     st.divider()
 
-    # 2. 3-WAY VALUATION COMPARISON & ROBUST EXTERNAL LINKS
+    # -------------------------------------------------------------
+    # 2. VEHICLE HISTORY & TITLE SHORTCUTS (RESTORED)
+    # -------------------------------------------------------------
+    st.subheader(f"🔍 External History & Title Verification Shortcuts")
+    st.caption("Quickly verify safety recalls, stolen records, total-loss claims, and full title history.")
+
+    h_col1, h_col2, h_col3 = st.columns(3)
+
+    with h_col1:
+        st.markdown("##### 🛡️ Official Free Verification")
+        st.link_button("⚠️ Check Safety Recalls (NHTSA)", f"https://www.nhtsa.gov/recalls?vin={curr_vin}", use_container_width=True)
+        st.link_button("🚨 Check Theft & Salvage (NICB)", "https://www.nicb.org/vincheck", use_container_width=True)
+
+    with h_col2:
+        st.markdown("##### 📜 Official Title Records")
+        st.link_button("🏛️ NMVTIS Provider Portal", "https://vehiclehistory.bja.ojp.gov/nmvtis_vehiclehistory", use_container_width=True)
+        st.link_button("📄 VinAudit Web Title Check", f"https://www.vinaudit.com/report?vin={curr_vin}", use_container_width=True)
+
+    with h_col3:
+        st.markdown("##### 📑 Commercial History Reports")
+        st.link_button("📋 Open CARFAX Search", f"https://www.carfax.com/vehicle/{curr_vin}", use_container_width=True)
+        st.link_button("📊 Open AutoCheck Lookup", f"https://www.autocheck.com/vehiclehistory/autocheck/en/search?vin={curr_vin}", use_container_width=True)
+
+    st.divider()
+
+    # -------------------------------------------------------------
+    # 3. 3-WAY VALUATION COMPARISON & ROBUST EXTERNAL LINKS
+    # -------------------------------------------------------------
     st.subheader(f"📊 3-Way Market Comparison ({radius}-Mile Radius around {zip_code})")
 
     make_clean = vehicle['make'].lower().replace(" ", "-")
     model_kbb_slug = vehicle['model'].lower().replace(" ", "-")
     cars_model_slug = vehicle['model'].lower().replace(" ", "_")
     
-    # 1. KBB Valuation URL (Passes Intent, Mileage, and VIN to KBB's router)
+    # 1. KBB Valuation URL (Injecting Intent, Year, Make, Model, Mileage, and VIN)
     kbb_url = (
-        f"https://www.kbb.com/{make_clean}/{model_kbb_slug}/{vehicle['year']}/styles/"
-        f"?intent=trade-in-sell&mileage={mileage_input}&vin={curr_vin.lower()}"
+        f"https://www.kbb.com/vehicles/options/?intent=trade-in-sell"
+        f"&year={vehicle['year']}&make={make_clean}&model={model_kbb_slug}"
+        f"&mileage={mileage_input}&vin={curr_vin.lower()}"
     )
 
-    # 2. FB Marketplace 
+    # 2. FB Marketplace (Restored min/max mileage parameters)
+    min_mile = max(0, mileage_input - 15000)
+    max_mile = mileage_input + 15000
     fb_search_query = f"{vehicle['year']} {vehicle['make']} {vehicle['model']}"
     encoded_fb_query = urllib.parse.quote(fb_search_query)
-    fb_url = f"https://www.facebook.com/marketplace/search/?query={encoded_fb_query}"
+    fb_url = (
+        f"https://www.facebook.com/marketplace/search/?query={encoded_fb_query}"
+        f"&minMileage={min_mile}&maxMileage={max_mile}&exact=false"
+    )
 
     # 3. Cars.com Dealer Search
     cars_url = (
@@ -224,7 +261,9 @@ if "vehicle_data" in st.session_state:
 
     st.divider()
 
-    # 3. SPLIT SCREEN: FINANCIAL CONTROLS & MAX BID OUTPUT
+    # -------------------------------------------------------------
+    # 4. SPLIT SCREEN: FINANCIAL CONTROLS & MAX BID OUTPUT
+    # -------------------------------------------------------------
     left_panel, right_panel = st.columns([1, 1], gap="large")
 
     with left_panel:
@@ -277,7 +316,9 @@ if "vehicle_data" in st.session_state:
 
     st.divider()
 
-    # 4. COMPREHENSIVE MARKETING & SPEC PACKAGE GENERATOR
+    # -------------------------------------------------------------
+    # 5. COMPREHENSIVE MARKETING & SPEC PACKAGE GENERATOR
+    # -------------------------------------------------------------
     st.subheader("📢 Complete Vehicle Marketing Package")
 
     m_col1, m_col2 = st.columns([1, 2])
