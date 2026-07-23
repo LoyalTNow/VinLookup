@@ -63,20 +63,21 @@ def fetch_vinaudit_details():
         "lien_check": "No Active Liens Found"
     }
 
-# --- Dynamic Valuation Estimator ---
-def calculate_valuations(vehicle: dict, mileage: int):
-    base_price = 32000
+# --- Dynamic Valuation Estimator (Now Uses Original MSRP) ---
+def calculate_valuations(vehicle: dict, mileage: int, original_msrp: int):
     current_year = 2026
     age = max(1, current_year - vehicle['year'])
     
-    # Standard depreciation (~10%/year)
-    depreciated_base = base_price * ((0.90) ** age)
+    # Standard depreciation (~10%/year applied to the actual original MSRP)
+    depreciated_base = original_msrp * ((0.90) ** age)
     
     # Mileage factor benchmark: 12,000 miles/year
     expected_mileage = age * 12000
     mileage_diff = mileage - expected_mileage
+    
+    # Apply a $0.08 per mile penalty/bonus
     mileage_adjustment = mileage_diff * 0.08
-    adjusted_value = max(3000, depreciated_base - mileage_adjustment)
+    adjusted_value = max(1000, depreciated_base - mileage_adjustment)
     
     # KBB Ranges
     trade_in_low = round(adjusted_value * 0.82)
@@ -107,14 +108,18 @@ def calculate_valuations(vehicle: dict, mileage: int):
 # --- Sidebar Inputs & Persistent State Handling ---
 with st.sidebar:
     st.header("1. Vehicle & Location Inputs")
-    vin_input = st.text_input("Enter 17-Digit VIN:", value="JTHBK1EG3B2465540", key="vin_input").strip().upper()
-    mileage_input = st.number_input("Current Mileage:", min_value=0, max_value=400000, value=144000, step=1000, key="mileage_input")
+    vin_input = st.text_input("Enter 17-Digit VIN:", value="3N1CE2CP6FL355949", key="vin_input").strip().upper()
+    
+    # NEW: Original MSRP Input for Accurate Depreciation
+    msrp_input = st.number_input("Original MSRP (When New):", min_value=5000, max_value=200000, value=15000, step=1000, key="msrp_input", help="Enter what the car cost brand new. This makes the valuation algorithm highly accurate.")
+    
+    mileage_input = st.number_input("Current Mileage:", min_value=0, max_value=400000, value=82000, step=1000, key="mileage_input")
     zip_code = st.text_input("Target ZIP Code:", value="77375", key="zip_input").strip()
     radius = st.slider("Search Radius (Miles):", min_value=10, max_value=250, value=100, step=10)
     
     search_button = st.button("Decode & Run Full Inspection", type="primary", use_container_width=True)
 
-# Detect VIN change to update state cleanly without full refreshes
+# Detect input changes to update state cleanly
 if "active_vin" not in st.session_state or st.session_state["active_vin"] != vin_input:
     st.session_state["trigger_update"] = True
 
@@ -130,7 +135,7 @@ if search_button or st.session_state.get("trigger_update", False):
                 st.error(f"Failed to decode VIN: {error}")
             else:
                 st.session_state["vehicle_data"] = vehicle
-                st.session_state["val_data"] = calculate_valuations(vehicle, mileage_input)
+                st.session_state["val_data"] = calculate_valuations(vehicle, mileage_input, msrp_input)
                 st.session_state["vinaudit_data"] = fetch_vinaudit_details()
                 st.session_state["active_vin"] = vin_input
                 st.session_state["trigger_update"] = False
@@ -140,8 +145,8 @@ if "vehicle_data" in st.session_state:
     curr_vin = st.session_state["active_vin"]
     va_data = st.session_state.get("vinaudit_data", {})
 
-    # Dynamic valuation recalculation on mileage changes
-    val = calculate_valuations(vehicle, mileage_input)
+    # Dynamic valuation recalculation if mileage or MSRP changes
+    val = calculate_valuations(vehicle, mileage_input, msrp_input)
 
     # -------------------------------------------------------------
     # 1. VEHICLE HEADER
@@ -160,22 +165,24 @@ if "vehicle_data" in st.session_state:
     # -------------------------------------------------------------
     st.subheader(f"📊 3-Way Market Comparison ({radius}-Mile Radius around {zip_code})")
 
-    # Accurate URL Formats based on platform requirements
     make_clean = vehicle['make'].lower().replace(" ", "-")
-    model_clean = vehicle['model'].lower().replace(" ", "-")
     
-    # 1. KBB Valuation URL (Exact format)
-    kbb_url = f"https://www.kbb.com/{make_clean}/{model_clean}/{vehicle['year']}/"
+    # FIX: Cars.com requires underscores for multi-word models (e.g., versa_note)
+    cars_model_slug = vehicle['model'].lower().replace(" ", "_")
+    
+    # FIX: KBB URL bypassing the research page and going straight to appraisal flow
+    kbb_model_slug = vehicle['model'].lower().replace(" ", "-")
+    kbb_url = f"https://www.kbb.com/{make_clean}/{kbb_model_slug}/{vehicle['year']}/styles/?intent=trade-in-sell"
 
-    # 2. Facebook Marketplace (Clean Search Query)
+    # Facebook Marketplace (Clean Search Query)
     fb_search_query = f"{vehicle['year']} {vehicle['make']} {vehicle['model']}"
     encoded_fb_query = urllib.parse.quote(fb_search_query)
     fb_url = f"https://www.facebook.com/marketplace/search/?query={encoded_fb_query}"
 
-    # 3. Cars.com Dealer Search (Must use makes[] and models[] arrays)
+    # FIX: Cars.com link using correct underscore slug to prevent dropping the model
     cars_url = (
         f"https://www.cars.com/shopping/results/?"
-        f"stock_type=used&makes[]={make_clean}&models[]={make_clean}-{model_clean}"
+        f"stock_type=used&makes[]={make_clean}&models[]={make_clean}-{cars_model_slug}"
         f"&maximum_distance={radius}&zip={zip_code}"
     )
 
@@ -186,12 +193,12 @@ if "vehicle_data" in st.session_state:
         st.write(f"**Trade-In:** {val['kbb_trade_in']}")
         st.write(f"**Private Party:** {val['kbb_private_party_range']}")
         st.metric("KBB Private Baseline", f"${val['kbb_private_avg']:,}")
-        st.link_button("🔗 Open KBB Valuation Page", kbb_url, use_container_width=True)
+        st.link_button("🔗 Open KBB Appraisal Tool", kbb_url, use_container_width=True)
 
     with v2:
         st.success("### 🛍️ 2. FB Marketplace")
         st.write(f"**FB Expected Range:** {val['fb_range']}")
-        st.caption("Local peer-to-peer sale target.")
+        st.caption("Algorithmically depreciated local target.")
         st.metric("FB Target Resale Avg", f"${val['fb_avg']:,}")
         st.link_button("🔗 Search FB Marketplace", fb_url, use_container_width=True)
 
@@ -220,12 +227,12 @@ if "vehicle_data" in st.session_state:
             key="target_sale_price_input"
         )
         
-        target_profit = st.number_input("Target Profit ($):", min_value=0, value=2500, step=100)
+        target_profit = st.number_input("Target Profit ($):", min_value=0, value=1500, step=100)
 
         st.markdown("##### 🔨 Repairs & Reconditioning")
         col_r1, col_r2 = st.columns(2)
         with col_r1:
-            repairs = st.number_input("Estimated Repairs ($):", min_value=0, value=1200, step=50)
+            repairs = st.number_input("Estimated Repairs ($):", min_value=0, value=800, step=50)
         with col_r2:
             cleaning_fee = st.number_input("Detail / Clean ($):", min_value=0, value=150, step=25)
 
@@ -286,7 +293,6 @@ if "vehicle_data" in st.session_state:
 
     highlights_str = "\n".join(highlights)
 
-    # Dynamic all-in-one text block
     full_marketing_spec = f"""==================================================
 🚗 VEHICLE SPECIFICATION & HISTORY SHEET
 ==================================================
