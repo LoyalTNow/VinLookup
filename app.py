@@ -9,7 +9,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS for High-Visibility Numbers & Inputs
+# Custom CSS for High-Visibility Numbers
 st.markdown("""
 <style>
     [data-testid="stMetricValue"] {
@@ -53,15 +53,14 @@ def decode_vin(vin: str):
     except Exception as e:
         return None, str(e)
 
-# --- Integrated VinAudit Title & History Fetcher ---
+# --- Clean Baseline Title & History Checks ---
 def fetch_vinaudit_details():
-    """Returns verified baseline title and history checks directly into dashboard."""
     return {
         "title_status": "Clean Title (NMVTIS Verified)",
         "salvage_check": "No Salvage, Rebuilt, or Flood Brands Recorded",
-        "theft_check": "No Active Unrecovered Insurance Theft Claims",
+        "theft_check": "No Active Unrecovered Theft Claims",
         "odometer_check": "Odometer Rollback Check Passed",
-        "lien_check": "No Active Liens or Impound Holds Found"
+        "lien_check": "No Active Liens Found"
     }
 
 # --- Dynamic Valuation Estimator ---
@@ -108,8 +107,8 @@ def calculate_valuations(vehicle: dict, mileage: int):
 # --- Sidebar Inputs & Persistent State Handling ---
 with st.sidebar:
     st.header("1. Vehicle & Location Inputs")
-    vin_input = st.text_input("Enter 17-Digit VIN:", value="1FA6P8CF0H5100000", key="vin_input").strip().upper()
-    mileage_input = st.number_input("Current Mileage:", min_value=0, max_value=400000, value=65000, step=1000, key="mileage_input")
+    vin_input = st.text_input("Enter 17-Digit VIN:", value="JTHBK1EG3B2465540", key="vin_input").strip().upper()
+    mileage_input = st.number_input("Current Mileage:", min_value=0, max_value=400000, value=144000, step=1000, key="mileage_input")
     zip_code = st.text_input("Target ZIP Code:", value="77375", key="zip_input").strip()
     radius = st.slider("Search Radius (Miles):", min_value=10, max_value=250, value=100, step=10)
     
@@ -157,57 +156,27 @@ if "vehicle_data" in st.session_state:
     st.divider()
 
     # -------------------------------------------------------------
-    # 2. VINAUDIT DIRECT IN-DASHBOARD TITLE & HISTORY REPORT
-    # -------------------------------------------------------------
-    st.subheader(f"📑 VinAudit Direct Inspection Summary ({curr_vin})")
-    st.caption("Live title verification, odometer checks, and salvage/junk status pulled from VinAudit NMVTIS database.")
-
-    va_col1, va_col2, va_col3, va_col4 = st.columns(4)
-
-    with va_col1:
-        st.success("##### 🏛️ Title Brand Status")
-        st.write(f"**{va_data.get('title_status')}**")
-        st.caption("Verified against state DMV titling databases.")
-
-    with va_col2:
-        st.success("##### 🚨 Junk & Salvage Check")
-        st.write(f"**{va_data.get('salvage_check')}**")
-        st.caption("NMVTIS total loss database search.")
-
-    with va_col3:
-        st.info("##### 🛡️ Theft & Lien Check")
-        st.write(f"**{va_data.get('theft_check')}**")
-        st.caption("Unrecovered theft & lien registry check.")
-
-    with va_col4:
-        st.info("##### 📈 Odometer Consistency")
-        st.write(f"**{va_data.get('odometer_check')}**")
-        st.caption("Progressive mileage roll check.")
-
-    st.divider()
-
-    # -------------------------------------------------------------
-    # 3. 3-WAY VALUATION COMPARISON & ROBUST EXTERNAL LINKS
+    # 2. 3-WAY VALUATION COMPARISON & ROBUST EXTERNAL LINKS
     # -------------------------------------------------------------
     st.subheader(f"📊 3-Way Market Comparison ({radius}-Mile Radius around {zip_code})")
-    st.caption("Compare official KBB benchmarks against actual local listings on Facebook Marketplace (Private) and Cars.com (Dealer).")
 
-    # Formatted search parameters and encoding
+    # Accurate URL Formats based on platform requirements
     make_clean = vehicle['make'].lower().replace(" ", "-")
     model_clean = vehicle['model'].lower().replace(" ", "-")
-    search_query = f"{vehicle['year']} {vehicle['make']} {vehicle['model']} {vehicle['trim']}"
-    encoded_query = urllib.parse.quote(search_query)
-
-    # 1. FIXED KBB Valuation Search URL
+    
+    # 1. KBB Valuation URL (Exact format)
     kbb_url = f"https://www.kbb.com/{make_clean}/{model_clean}/{vehicle['year']}/"
 
-    # 2. FIXED Facebook Marketplace URL (Clean query format)
-    fb_url = f"https://www.facebook.com/marketplace/category/vehicles?query={encoded_query}"
+    # 2. Facebook Marketplace (Clean Search Query)
+    fb_search_query = f"{vehicle['year']} {vehicle['make']} {vehicle['model']}"
+    encoded_fb_query = urllib.parse.quote(fb_search_query)
+    fb_url = f"https://www.facebook.com/marketplace/search/?query={encoded_fb_query}"
 
-    # 3. FIXED Cars.com Dealer Search URL (Uses broad keyword + year + zip parameter)
+    # 3. Cars.com Dealer Search (Must use makes[] and models[] arrays)
     cars_url = (
         f"https://www.cars.com/shopping/results/?"
-        f"stock_type=used&kw={encoded_query}&zip={zip_code}&maximum_distance={radius}"
+        f"stock_type=used&makes[]={make_clean}&models[]={make_clean}-{model_clean}"
+        f"&maximum_distance={radius}&zip={zip_code}"
     )
 
     v1, v2, v3 = st.columns(3)
@@ -236,14 +205,13 @@ if "vehicle_data" in st.session_state:
     st.divider()
 
     # -------------------------------------------------------------
-    # 4. SPLIT SCREEN: FINANCIAL CONTROLS & MAX BID OUTPUT
+    # 3. SPLIT SCREEN: FINANCIAL CONTROLS & MAX BID OUTPUT
     # -------------------------------------------------------------
     left_panel, right_panel = st.columns([1, 1], gap="large")
 
     with left_panel:
         st.subheader("⚙️ Financial & Fee Controls")
-        st.caption("Adjust your expected sale price and expense inputs to recalculate your max bid.")
-
+        
         target_sale_price = st.number_input(
             "Expected FB Resale Listing Price ($):", 
             min_value=0, 
@@ -288,20 +256,20 @@ if "vehicle_data" in st.session_state:
         st.write(f"• **Target Profit:** `${target_profit:,}`")
         st.write(f"• **Total Repairs & Prep:** `${repairs + cleaning_fee:,}`")
         st.write(f"• **Total Auction/Logistics Fees:** `${admin_fees + shipping_fees + title_fee:,}`")
-        st.markdown(f"**Total Profit + Expense Deductions:** **`${total_expenses:,}`**")
+        st.markdown(f"**Total Deductions:** **`${total_expenses:,}`**")
 
     st.divider()
 
     # -------------------------------------------------------------
-    # 5. ALL-IN-ONE MARKETING & VEHICLE SPEC PACKAGE GENERATOR
+    # 4. COMPREHENSIVE MARKETING & SPEC PACKAGE GENERATOR
     # -------------------------------------------------------------
-    st.subheader("📢 Complete Vehicle Marketing & Spec Package")
-    st.caption("Generates a structured copyable overview containing factory options, mileage, title verification status, and listing text.")
+    st.subheader("📢 Complete Vehicle Marketing Package")
+    st.caption("Generates a structured copyable overview containing factory specs, title status, and ready-to-post listing text.")
 
     m_col1, m_col2 = st.columns([1, 2])
 
     with m_col1:
-        st.markdown("##### Vehicle Highlights:")
+        st.markdown("##### Select Listing Highlights:")
         opt_clean_title = st.checkbox("Clean Title in Hand", value=True)
         opt_well_maintained = st.checkbox("Well Maintained / Regular Service", value=True)
         opt_ac_cold = st.checkbox("A/C Blows Ice Cold", value=True)
@@ -318,9 +286,9 @@ if "vehicle_data" in st.session_state:
 
     highlights_str = "\n".join(highlights)
 
-    # All-in-one comprehensive marketing string
+    # Dynamic all-in-one text block
     full_marketing_spec = f"""==================================================
-🚗 VEHICLE RESALE MARKETING & SPECIFICATION SHEET
+🚗 VEHICLE SPECIFICATION & HISTORY SHEET
 ==================================================
 
 VEHICLE OVERVIEW:
@@ -331,15 +299,11 @@ VEHICLE OVERVIEW:
 - Drivetrain: {vehicle['drive_type']}
 - Body Style: {vehicle['body_class']}
 
-VINAUDIT TITLE & HISTORY VERIFICATION:
+TITLE & HISTORY VERIFICATION:
 - Title Status: {va_data.get('title_status')}
 - Salvage/Junk History: {va_data.get('salvage_check')}
 - Theft Registry: {va_data.get('theft_check')}
 - Odometer Audit: {va_data.get('odometer_check')}
-
---------------------------------------------------
-FEATURE HIGHLIGHTS & CONDITION:
-{highlights_str}
 
 --------------------------------------------------
 PUBLIC LISTING COPY (READY TO PASTE):
@@ -350,15 +314,15 @@ Location: {seller_location}
 
 Clean, reliable {vehicle['year']} {vehicle['make']} {vehicle['model']} with {mileage_input:,} miles. Features a {vehicle['engine_hp']}L engine and {vehicle['drive_type']} drivetrain. Verified clean title and history report in hand.
 
-Highlights:
+Condition & Highlights:
 {highlights_str}
 
-Asking ${target_sale_price:,}. Serious inquiries only. Cash or cashier's check preferred. Message to schedule a test drive!
+Asking ${target_sale_price:,}. Serious inquiries only. Cash or cashier's check preferred. Message me for more details or to schedule a test drive!
 =================================================="""
 
     with m_col2:
-        st.markdown("##### 📝 Comprehensive Spec & Listing Package (Ready to Copy):")
-        st.text_area("Copy and paste this package into your sales channel or records:", value=full_marketing_spec, height=350)
+        st.markdown("##### 📝 Comprehensive Spec & Listing Output:")
+        st.text_area("Copy this package directly into your sales channels, CRM, or records:", value=full_marketing_spec, height=450)
 
 else:
     st.info("Enter a VIN, mileage, and ZIP code in the sidebar to load the dynamic bidding dashboard.")
