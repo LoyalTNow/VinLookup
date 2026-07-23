@@ -61,24 +61,39 @@ def fetch_vinaudit_details():
         "lien_check": "No Active Liens Found"
     }
 
-# --- Intelligent Auto-MSRP Estimator ---
-def estimate_original_msrp(year: int, make: str):
+# --- Intelligent Auto-MSRP Estimator (TIERED BY MODEL) ---
+def estimate_original_msrp(year: int, make: str, model: str):
     make = str(make).upper()
-    luxury_makes = ["LEXUS", "BMW", "MERCEDES", "MERCEDES-BENZ", "AUDI", "ACURA", "INFINITI", "CADILLAC", "LINCOLN", "VOLVO", "LAND ROVER", "PORSCHE"]
-    truck_makes = ["GMC", "RAM"]
+    model = str(model).upper() if model else ""
     
-    if make in luxury_makes:
-        base = 45000
-    elif make in truck_makes:
-        base = 40000
+    ultra_luxury = ["PORSCHE", "MASERATI", "BENTLEY", "ASTON MARTIN", "FERRARI", "LAMBORGHINI"]
+    flagship_suvs = ["NAVIGATOR", "ESCALADE", "G-CLASS", "RANGE ROVER", "LAND CRUISER", "LX", "X7", "GLS", "GRAND WAGONEER", "Q8", "DEFENDER"]
+    heavy_trucks = ["F-250", "F-350", "2500", "3500"]
+    large_suvs = ["EXPEDITION", "SUBURBAN", "TAHOE", "YUKON", "SEQUOIA", "ARMADA", "WAGONEER", "X5", "GLE", "Q7"]
+    standard_trucks = ["F-150", "SILVERADO", "SIERRA", "RAM", "TUNDRA", "TITAN", "GLADIATOR", "TACOMA"]
+    luxury_makes = ["LEXUS", "BMW", "MERCEDES", "MERCEDES-BENZ", "AUDI", "ACURA", "INFINITI", "CADILLAC", "LINCOLN", "VOLVO", "LAND ROVER", "ALFA ROMEO"]
+    
+    if make in ultra_luxury:
+        base_tier = 110000
+    elif any(fm in model for fm in flagship_suvs):
+        base_tier = 90000
+    elif any(ht in model for ht in heavy_trucks):
+        base_tier = 65000
+    elif any(ls in model for ls in large_suvs):
+        base_tier = 58000
+    elif any(st in model for st in standard_trucks):
+        base_tier = 48000
+    elif make in luxury_makes:
+        base_tier = 45000
     else:
-        base = 24000
+        base_tier = 26000
         
     current_year = 2026
     age = max(0, current_year - year)
     
-    estimated_msrp = base * ((0.975) ** age)
-    return estimated_msrp
+    # Reverse inflation calculator (~2% per year back in time)
+    estimated_msrp = base_tier * ((0.98) ** age)
+    return estimated_msrp, base_tier
 
 # --- Robust Depreciation Valuation Engine ---
 def calculate_valuations(vehicle: dict, mileage: int):
@@ -86,8 +101,9 @@ def calculate_valuations(vehicle: dict, mileage: int):
     current_year = 2026
     age = max(1, current_year - year)
     
-    estimated_msrp = estimate_original_msrp(year, vehicle['make'])
+    estimated_msrp, base_tier = estimate_original_msrp(year, vehicle['make'], vehicle['model'])
     
+    # Tiered Depreciation Curve
     depreciation_factor = 1.0
     for i in range(1, age + 1):
         if i <= 3:
@@ -99,12 +115,15 @@ def calculate_valuations(vehicle: dict, mileage: int):
             
     base_value = estimated_msrp * depreciation_factor
     
+    # Proportional mileage adjustment (Expensive cars lose more value per mile)
     expected_mileage = age * 12000
     mileage_diff = mileage - expected_mileage
-    mileage_adjustment = mileage_diff * 0.05
+    mileage_penalty_rate = max(0.05, base_tier / 400000) 
     
+    mileage_adjustment = mileage_diff * mileage_penalty_rate
     adjusted_value = max(1500, base_value - mileage_adjustment)
     
+    # Market Adjusters
     trade_in_low = round(adjusted_value * 0.75)
     trade_in_high = round(adjusted_value * 0.85)
     private_low = round(adjusted_value * 0.95)
@@ -201,7 +220,7 @@ if "vehicle_data" in st.session_state:
         f"&minMileage={min_mile}&maxMileage={max_mile}&exact=false"
     )
 
-    # 3. Cars.com Dealer Search (Updated Format)
+    # 3. Cars.com Dealer Search 
     cars_url = (
         f"https://www.cars.com/shopping/results/?"
         f"stock_type=used&year_min={vehicle['year']}&year_max={vehicle['year']}"
@@ -363,7 +382,6 @@ Asking ${target_sale_price:,}. Serious inquiries only. Cash or cashier's check p
         st.markdown("##### 📝 Comprehensive Spec & Listing Output:")
         st.text_area("Copy this package directly into your sales channels, CRM, or records:", value=full_marketing_spec, height=450)
         
-        # NEW MARKETPLACE SHORTCUT BUTTON
         st.link_button("🚀 Open Facebook Marketplace to Paste & Publish", "https://www.facebook.com/marketplace/create/vehicle", use_container_width=True, type="primary")
 
 else:
