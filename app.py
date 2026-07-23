@@ -61,7 +61,7 @@ def fetch_vinaudit_details():
         "lien_check": "No Active Liens Found"
     }
 
-# --- Intelligent Auto-MSRP Estimator (TIERED BY MODEL) ---
+# --- Intelligent Auto-MSRP Estimator with Categories ---
 def estimate_original_msrp(year: int, make: str, model: str):
     make = str(make).upper()
     model = str(model).upper() if model else ""
@@ -72,28 +72,39 @@ def estimate_original_msrp(year: int, make: str, model: str):
     large_suvs = ["EXPEDITION", "SUBURBAN", "TAHOE", "YUKON", "SEQUOIA", "ARMADA", "WAGONEER", "X5", "GLE", "Q7"]
     standard_trucks = ["F-150", "SILVERADO", "SIERRA", "RAM", "TUNDRA", "TITAN", "GLADIATOR", "TACOMA"]
     luxury_makes = ["LEXUS", "BMW", "MERCEDES", "MERCEDES-BENZ", "AUDI", "ACURA", "INFINITI", "CADILLAC", "LINCOLN", "VOLVO", "LAND ROVER", "ALFA ROMEO"]
+    reliable_economy = ["TOYOTA", "HONDA", "SUBARU", "MAZDA"]
+    
+    car_category = "standard"
     
     if make in ultra_luxury:
         base_tier = 110000
+        car_category = "luxury"
     elif any(fm in model for fm in flagship_suvs):
         base_tier = 90000
+        car_category = "luxury"
     elif any(ht in model for ht in heavy_trucks):
         base_tier = 65000
+        car_category = "truck"
     elif any(ls in model for ls in large_suvs):
         base_tier = 58000
+        car_category = "standard"
     elif any(st in model for st in standard_trucks):
         base_tier = 48000
+        car_category = "truck"
     elif make in luxury_makes:
         base_tier = 45000
+        car_category = "luxury"
+    elif make in reliable_economy:
+        base_tier = 26000
+        car_category = "reliable"
     else:
         base_tier = 26000
         
     current_year = 2026
     age = max(0, current_year - year)
     
-    # Reverse inflation calculator (~2% per year back in time)
     estimated_msrp = base_tier * ((0.98) ** age)
-    return estimated_msrp, base_tier
+    return estimated_msrp, base_tier, car_category
 
 # --- Robust Depreciation Valuation Engine ---
 def calculate_valuations(vehicle: dict, mileage: int):
@@ -101,34 +112,59 @@ def calculate_valuations(vehicle: dict, mileage: int):
     current_year = 2026
     age = max(1, current_year - year)
     
-    estimated_msrp, base_tier = estimate_original_msrp(year, vehicle['make'], vehicle['model'])
+    estimated_msrp, base_tier, category = estimate_original_msrp(year, vehicle['make'], vehicle['model'])
     
-    # Tiered Depreciation Curve
+    if category == "reliable":
+        dep_1_3 = 0.90
+        dep_4_8 = 0.93
+        dep_9_plus = 0.95
+        mileage_rate = 0.035
+        floor = 4500
+    elif category == "truck":
+        dep_1_3 = 0.88
+        dep_4_8 = 0.92
+        dep_9_plus = 0.94
+        mileage_rate = 0.04
+        floor = 5000
+    elif category == "luxury":
+        dep_1_3 = 0.80
+        dep_4_8 = 0.88
+        dep_9_plus = 0.90
+        mileage_rate = max(0.08, base_tier / 300000)
+        floor = 2500
+    else:
+        dep_1_3 = 0.85
+        dep_4_8 = 0.90
+        dep_9_plus = 0.93
+        mileage_rate = max(0.05, base_tier / 400000)
+        floor = 2000
+
     depreciation_factor = 1.0
     for i in range(1, age + 1):
         if i <= 3:
-            depreciation_factor *= 0.85
+            depreciation_factor *= dep_1_3
         elif i <= 8:
-            depreciation_factor *= 0.90
+            depreciation_factor *= dep_4_8
         else:
-            depreciation_factor *= 0.93
+            depreciation_factor *= dep_9_plus
             
     base_value = estimated_msrp * depreciation_factor
     
-    # Proportional mileage adjustment (Expensive cars lose more value per mile)
     expected_mileage = age * 12000
     mileage_diff = mileage - expected_mileage
-    mileage_penalty_rate = max(0.05, base_tier / 400000) 
     
-    mileage_adjustment = mileage_diff * mileage_penalty_rate
-    adjusted_value = max(1500, base_value - mileage_adjustment)
+    mileage_adjustment = mileage_diff * mileage_rate
+    adjusted_value = max(floor, base_value - mileage_adjustment)
     
-    # Market Adjusters
     trade_in_low = round(adjusted_value * 0.75)
     trade_in_high = round(adjusted_value * 0.85)
     private_low = round(adjusted_value * 0.95)
     private_high = round(adjusted_value * 1.10)
     kbb_private_avg = round((private_low + private_high) / 2)
+    
+    # New Estimations for NADA and TrueCar
+    nada_clean_retail = round(private_high * 1.05)
+    truecar_avg = round(private_high * 1.08)
     
     cars_com_avg = round(private_high * 1.10)
     fb_market_avg = round(private_low * 1.02)
@@ -139,18 +175,18 @@ def calculate_valuations(vehicle: dict, mileage: int):
         "kbb_trade_in": f"${trade_in_low:,} – ${trade_in_high:,}",
         "kbb_private_party_range": f"${private_low:,} – ${private_high:,}",
         "kbb_private_avg": kbb_private_avg,
+        "nada_retail_est": nada_clean_retail,
         "cars_com_avg": cars_com_avg,
+        "truecar_avg": truecar_avg,
         "fb_avg": fb_market_avg,
-        "fb_range": f"${fb_range_low:,} – ${fb_range_high:,}",
-        "dealer_vs_fb_delta": cars_com_avg - fb_market_avg,
-        "fb_vs_kbb_delta": fb_market_avg - kbb_private_avg
+        "fb_range": f"${fb_range_low:,} – ${fb_range_high:,}"
     }
 
 # --- Sidebar Inputs ---
 with st.sidebar:
     st.header("1. Vehicle & Location Inputs")
     vin_input = st.text_input("Enter 17-Digit VIN:", value="", key="vin_input").strip().upper()
-    mileage_input = st.number_input("Current Mileage:", min_value=0, max_value=400000, value=144000, step=1000, key="mileage_input")
+    mileage_input = st.number_input("Current Mileage:", min_value=0, max_value=400000, value=170000, step=1000, key="mileage_input")
     zip_code = st.text_input("Target ZIP Code:", value="77375", key="zip_input").strip()
     radius = st.slider("Search Radius (Miles):", min_value=10, max_value=250, value=100, step=10)
     
@@ -196,21 +232,22 @@ if "vehicle_data" in st.session_state:
 
     st.divider()
 
-    # 2. 3-WAY VALUATION COMPARISON & ROBUST EXTERNAL LINKS
-    st.subheader(f"📊 3-Way Market Comparison ({radius}-Mile Radius around {zip_code})")
+    # 2. 5-WAY VALUATION DASHBOARD
+    st.subheader(f"📊 Market & Book Valuations ({radius}-Mile Radius around {zip_code})")
 
     make_clean = vehicle['make'].lower().replace(" ", "-")
-    model_kbb_slug = vehicle['model'].lower().replace(" ", "-")
+    model_clean = vehicle['model'].lower().replace(" ", "-")
     cars_model_slug = vehicle['model'].lower().replace(" ", "_")
     
-    # 1. KBB Valuation URL 
+    # URL Generators
     kbb_url = (
         f"https://www.kbb.com/vehicles/options/?intent=trade-in-sell"
-        f"&year={vehicle['year']}&make={make_clean}&model={model_kbb_slug}"
+        f"&year={vehicle['year']}&make={make_clean}&model={model_clean}"
         f"&mileage={mileage_input}&vin={curr_vin.lower()}"
     )
+    
+    nada_url = f"https://www.jdpower.com/cars/{vehicle['year']}/{make_clean}/{model_clean}"
 
-    # 2. FB Marketplace 
     min_mile = max(0, mileage_input - 15000)
     max_mile = mileage_input + 15000
     fb_search_query = f"{vehicle['year']} {vehicle['make']} {vehicle['model']}"
@@ -220,7 +257,6 @@ if "vehicle_data" in st.session_state:
         f"&minMileage={min_mile}&maxMileage={max_mile}&exact=false"
     )
 
-    # 3. Cars.com Dealer Search 
     cars_url = (
         f"https://www.cars.com/shopping/results/?"
         f"stock_type=used&year_min={vehicle['year']}&year_max={vehicle['year']}"
@@ -228,29 +264,56 @@ if "vehicle_data" in st.session_state:
         f"&include_shippable=false&zip={zip_code}&maximum_distance={radius}"
         f"&sort=best_match_desc"
     )
+    
+    truecar_url = (
+        f"https://www.truecar.com/used-cars-for-sale/listings/{make_clean}/{model_clean}/"
+        f"year-{vehicle['year']}-{vehicle['year']}/location-{zip_code}/?searchRadius={radius}"
+    )
 
-    v1, v2, v3 = st.columns(3)
-
-    with v1:
+    # Top Row: Official Book Values
+    st.markdown("#### 📖 Official Book Values")
+    b1, b2 = st.columns(2)
+    
+    with b1:
         st.info("### 📘 1. KBB Valuation")
         st.write(f"**Trade-In:** {val['kbb_trade_in']}")
-        st.write(f"**Private Party:** {val['kbb_private_party_range']}")
+        st.write(f"**Private Party Range:** {val['kbb_private_party_range']}")
         st.metric("KBB Private Baseline", f"${val['kbb_private_avg']:,}")
         st.link_button("🔗 Open KBB Appraisal Tool", kbb_url, use_container_width=True)
 
-    with v2:
-        st.success("### 🛍️ 2. FB Marketplace")
+    with b2:
+        st.info("### 📙 2. NADA / J.D. Power")
+        st.write("**Target:** Clean Retail / Dealer Resale")
+        st.write("Provides a baseline for high-end retail valuation.")
+        st.metric("NADA Clean Retail Est.", f"${val['nada_retail_est']:,}")
+        st.link_button("🔗 Open NADA Value Tool", nada_url, use_container_width=True)
+
+    st.markdown("---")
+
+    # Bottom Row: Live Retail & Private Market
+    st.markdown("#### 🛒 Live Retail & Private Market")
+    m1, m2, m3 = st.columns(3)
+
+    with m1:
+        st.success("### 🛍️ FB Marketplace")
         st.write(f"**FB Expected Range:** {val['fb_range']}")
         st.caption("Algorithmically depreciated local target.")
         st.metric("FB Target Resale Avg", f"${val['fb_avg']:,}")
         st.link_button("🔗 Search FB Marketplace", fb_url, use_container_width=True)
 
-    with v3:
-        st.warning("### 🚘 3. Cars.com")
+    with m2:
+        st.warning("### 🚘 Cars.com")
         st.write("**Dealer Retail Platform**")
         st.caption("Dealer retail asking average.")
         st.metric("Dealer Asking Avg", f"${val['cars_com_avg']:,}")
         st.link_button("🔗 Search Local Cars.com", cars_url, use_container_width=True)
+        
+    with m3:
+        st.error("### 🏷️ TrueCar")
+        st.write("**Dealer Pricing Aggregator**")
+        st.caption("Local dealer retail market pricing.")
+        st.metric("TrueCar Avg Est.", f"${val['truecar_avg']:,}")
+        st.link_button("🔗 Search Local TrueCar", truecar_url, use_container_width=True)
 
     st.divider()
 
