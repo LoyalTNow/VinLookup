@@ -130,7 +130,7 @@ def calculate_valuations(vehicle: dict, mileage: int):
 # --- Sidebar Inputs ---
 with st.sidebar:
     st.header("1. Vehicle & Location Inputs")
-    vin_input = st.text_input("Enter 17-Digit VIN:", value="3N1CE2CP6FL355949", key="vin_input").strip().upper()
+    vin_input = st.text_input("Enter 17-Digit VIN:", value="", key="vin_input").strip().upper()
     mileage_input = st.number_input("Current Mileage:", min_value=0, max_value=400000, value=144000, step=1000, key="mileage_input")
     zip_code = st.text_input("Target ZIP Code:", value="77375", key="zip_input").strip()
     radius = st.slider("Search Radius (Miles):", min_value=10, max_value=250, value=100, step=10)
@@ -142,9 +142,9 @@ if "active_vin" not in st.session_state or st.session_state["active_vin"] != vin
 
 if search_button or st.session_state.get("trigger_update", False):
     if len(vin_input) != 17:
-        st.error("Please enter a valid 17-character VIN.")
+        st.warning("Please enter a valid 17-character VIN.")
     elif not zip_code:
-        st.error("Please enter a valid ZIP code.")
+        st.warning("Please enter a valid ZIP code.")
     else:
         with st.spinner("Decoding VIN & Generating Algorithm Market Analysis..."):
             vehicle, error = decode_vin(vin_input)
@@ -163,14 +163,11 @@ if "vehicle_data" in st.session_state:
     va_data = st.session_state.get("vinaudit_data", {})
     val = calculate_valuations(vehicle, mileage_input)
 
-    # Automatically update the target sale price input box if the calculated average changes (e.g., from a mileage update)
     if "prev_fb_avg" not in st.session_state or st.session_state["prev_fb_avg"] != val['fb_avg']:
         st.session_state["target_sale_price_input"] = int(val['fb_avg'])
         st.session_state["prev_fb_avg"] = val['fb_avg']
 
-    # -------------------------------------------------------------
     # 1. VEHICLE HEADER
-    # -------------------------------------------------------------
     st.markdown(f"### 📋 {vehicle['year']} {vehicle['make']} {vehicle['model']} {vehicle['trim']}")
     
     h1, h2, h3 = st.columns(3)
@@ -180,9 +177,7 @@ if "vehicle_data" in st.session_state:
 
     st.divider()
 
-    # -------------------------------------------------------------
     # 2. 3-WAY VALUATION COMPARISON & ROBUST EXTERNAL LINKS
-    # -------------------------------------------------------------
     st.subheader(f"📊 3-Way Market Comparison ({radius}-Mile Radius around {zip_code})")
 
     make_clean = vehicle['make'].lower().replace(" ", "-")
@@ -239,34 +234,23 @@ if "vehicle_data" in st.session_state:
 
     st.divider()
 
-    # -------------------------------------------------------------
     # 3. VEHICLE HISTORY & TITLE SHORTCUTS
-    # -------------------------------------------------------------
     st.subheader(f"🔍 External History & Title Verification Shortcuts")
-    st.caption("Quickly verify safety recalls, stolen records, total-loss claims, and full title history.")
+    st.caption("Quickly verify safety recalls and full title history.")
 
-    h_col1, h_col2, h_col3 = st.columns(3)
+    h_col1, h_col2 = st.columns(2)
 
     with h_col1:
         st.markdown("##### 🛡️ Official Free Verification")
-        st.link_button("⚠️ Check Safety Recalls (NHTSA)", f"https://www.nhtsa.gov/recalls?vin={curr_vin}", use_container_width=True)
-        st.link_button("🚨 Check Theft & Salvage (NICB)", "https://www.nicb.org/vincheck", use_container_width=True)
+        st.link_button("⚠️ Check Safety Recalls (NHTSA)", f"https://www.nhtsa.gov/recalls?vymm={curr_vin}", use_container_width=True)
 
     with h_col2:
         st.markdown("##### 📜 Official Title Records")
-        st.link_button("🏛️ NMVTIS Provider Portal", "https://vehiclehistory.bja.ojp.gov/nmvtis_vehiclehistory", use_container_width=True)
         st.link_button("📄 VinAudit Web Title Check", f"https://www.vinaudit.com/report?vin={curr_vin}", use_container_width=True)
-
-    with h_col3:
-        st.markdown("##### 📑 Commercial History Reports")
-        st.link_button("📋 Open CARFAX Search", f"https://www.carfax.com/vehicle/{curr_vin}", use_container_width=True)
-        st.link_button("📊 Open AutoCheck Lookup", f"https://www.autocheck.com/vehiclehistory/autocheck/en/search?vin={curr_vin}", use_container_width=True)
 
     st.divider()
 
-    # -------------------------------------------------------------
     # 4. SPLIT SCREEN: FINANCIAL CONTROLS & MAX BID OUTPUT
-    # -------------------------------------------------------------
     left_panel, right_panel = st.columns([1, 1], gap="large")
 
     with left_panel:
@@ -318,9 +302,7 @@ if "vehicle_data" in st.session_state:
 
     st.divider()
 
-    # -------------------------------------------------------------
     # 5. COMPREHENSIVE MARKETING & SPEC PACKAGE GENERATOR
-    # -------------------------------------------------------------
     st.subheader("📢 Complete Vehicle Marketing Package")
 
     m_col1, m_col2 = st.columns([1, 2])
