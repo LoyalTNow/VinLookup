@@ -9,7 +9,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS for High-Visibility Numbers
 st.markdown("""
 <style>
     [data-testid="stMetricValue"] {
@@ -53,7 +52,6 @@ def decode_vin(vin: str):
     except Exception as e:
         return None, str(e)
 
-# --- Clean Baseline Title & History Checks ---
 def fetch_vinaudit_details():
     return {
         "title_status": "Clean Title (NMVTIS Verified)",
@@ -165,6 +163,11 @@ if "vehicle_data" in st.session_state:
     va_data = st.session_state.get("vinaudit_data", {})
     val = calculate_valuations(vehicle, mileage_input)
 
+    # Automatically update the target sale price input box if the calculated average changes (e.g., from a mileage update)
+    if "prev_fb_avg" not in st.session_state or st.session_state["prev_fb_avg"] != val['fb_avg']:
+        st.session_state["target_sale_price_input"] = int(val['fb_avg'])
+        st.session_state["prev_fb_avg"] = val['fb_avg']
+
     # -------------------------------------------------------------
     # 1. VEHICLE HEADER
     # -------------------------------------------------------------
@@ -178,32 +181,7 @@ if "vehicle_data" in st.session_state:
     st.divider()
 
     # -------------------------------------------------------------
-    # 2. VEHICLE HISTORY & TITLE SHORTCUTS (RESTORED)
-    # -------------------------------------------------------------
-    st.subheader(f"🔍 External History & Title Verification Shortcuts")
-    st.caption("Quickly verify safety recalls, stolen records, total-loss claims, and full title history.")
-
-    h_col1, h_col2, h_col3 = st.columns(3)
-
-    with h_col1:
-        st.markdown("##### 🛡️ Official Free Verification")
-        st.link_button("⚠️ Check Safety Recalls (NHTSA)", f"https://www.nhtsa.gov/recalls?vin={curr_vin}", use_container_width=True)
-        st.link_button("🚨 Check Theft & Salvage (NICB)", "https://www.nicb.org/vincheck", use_container_width=True)
-
-    with h_col2:
-        st.markdown("##### 📜 Official Title Records")
-        st.link_button("🏛️ NMVTIS Provider Portal", "https://vehiclehistory.bja.ojp.gov/nmvtis_vehiclehistory", use_container_width=True)
-        st.link_button("📄 VinAudit Web Title Check", f"https://www.vinaudit.com/report?vin={curr_vin}", use_container_width=True)
-
-    with h_col3:
-        st.markdown("##### 📑 Commercial History Reports")
-        st.link_button("📋 Open CARFAX Search", f"https://www.carfax.com/vehicle/{curr_vin}", use_container_width=True)
-        st.link_button("📊 Open AutoCheck Lookup", f"https://www.autocheck.com/vehiclehistory/autocheck/en/search?vin={curr_vin}", use_container_width=True)
-
-    st.divider()
-
-    # -------------------------------------------------------------
-    # 3. 3-WAY VALUATION COMPARISON & ROBUST EXTERNAL LINKS
+    # 2. 3-WAY VALUATION COMPARISON & ROBUST EXTERNAL LINKS
     # -------------------------------------------------------------
     st.subheader(f"📊 3-Way Market Comparison ({radius}-Mile Radius around {zip_code})")
 
@@ -211,14 +189,14 @@ if "vehicle_data" in st.session_state:
     model_kbb_slug = vehicle['model'].lower().replace(" ", "-")
     cars_model_slug = vehicle['model'].lower().replace(" ", "_")
     
-    # 1. KBB Valuation URL (Injecting Intent, Year, Make, Model, Mileage, and VIN)
+    # 1. KBB Valuation URL 
     kbb_url = (
         f"https://www.kbb.com/vehicles/options/?intent=trade-in-sell"
         f"&year={vehicle['year']}&make={make_clean}&model={model_kbb_slug}"
         f"&mileage={mileage_input}&vin={curr_vin.lower()}"
     )
 
-    # 2. FB Marketplace (Restored min/max mileage parameters)
+    # 2. FB Marketplace 
     min_mile = max(0, mileage_input - 15000)
     max_mile = mileage_input + 15000
     fb_search_query = f"{vehicle['year']} {vehicle['make']} {vehicle['model']}"
@@ -262,6 +240,31 @@ if "vehicle_data" in st.session_state:
     st.divider()
 
     # -------------------------------------------------------------
+    # 3. VEHICLE HISTORY & TITLE SHORTCUTS
+    # -------------------------------------------------------------
+    st.subheader(f"🔍 External History & Title Verification Shortcuts")
+    st.caption("Quickly verify safety recalls, stolen records, total-loss claims, and full title history.")
+
+    h_col1, h_col2, h_col3 = st.columns(3)
+
+    with h_col1:
+        st.markdown("##### 🛡️ Official Free Verification")
+        st.link_button("⚠️ Check Safety Recalls (NHTSA)", f"https://www.nhtsa.gov/recalls?vin={curr_vin}", use_container_width=True)
+        st.link_button("🚨 Check Theft & Salvage (NICB)", "https://www.nicb.org/vincheck", use_container_width=True)
+
+    with h_col2:
+        st.markdown("##### 📜 Official Title Records")
+        st.link_button("🏛️ NMVTIS Provider Portal", "https://vehiclehistory.bja.ojp.gov/nmvtis_vehiclehistory", use_container_width=True)
+        st.link_button("📄 VinAudit Web Title Check", f"https://www.vinaudit.com/report?vin={curr_vin}", use_container_width=True)
+
+    with h_col3:
+        st.markdown("##### 📑 Commercial History Reports")
+        st.link_button("📋 Open CARFAX Search", f"https://www.carfax.com/vehicle/{curr_vin}", use_container_width=True)
+        st.link_button("📊 Open AutoCheck Lookup", f"https://www.autocheck.com/vehiclehistory/autocheck/en/search?vin={curr_vin}", use_container_width=True)
+
+    st.divider()
+
+    # -------------------------------------------------------------
     # 4. SPLIT SCREEN: FINANCIAL CONTROLS & MAX BID OUTPUT
     # -------------------------------------------------------------
     left_panel, right_panel = st.columns([1, 1], gap="large")
@@ -272,7 +275,6 @@ if "vehicle_data" in st.session_state:
         target_sale_price = st.number_input(
             "Expected FB Resale Listing Price ($):", 
             min_value=0, 
-            value=int(val['fb_avg']), 
             step=250,
             key="target_sale_price_input"
         )
@@ -289,11 +291,11 @@ if "vehicle_data" in st.session_state:
         st.markdown("##### 📦 Auction & Administrative Fees")
         col_f1, col_f2, col_f3 = st.columns(3)
         with col_f1:
-            admin_fees = st.number_input("Auction Fee ($):", min_value=0, value=450, step=25)
+            admin_fees = st.number_input("Auction Fee ($):", min_value=0, value=700, step=25)
         with col_f2:
             shipping_fees = st.number_input("Transport ($):", min_value=0, value=350, step=25)
         with col_f3:
-            title_fee = st.number_input("Title/Reg ($):", min_value=0, value=100, step=10)
+            title_fee = st.number_input("Title/Reg ($):", min_value=0, value=225, step=10)
 
     with right_panel:
         st.subheader("🎯 Live Maximum Bid Output")
