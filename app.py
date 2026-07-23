@@ -201,12 +201,13 @@ if "vehicle_data" in st.session_state:
         f"&minMileage={min_mile}&maxMileage={max_mile}&exact=false"
     )
 
-    # 3. Cars.com Dealer Search
+    # 3. Cars.com Dealer Search (Updated Format)
     cars_url = (
         f"https://www.cars.com/shopping/results/?"
-        f"zip={zip_code}&maximum_distance={radius}"
+        f"stock_type=used&year_min={vehicle['year']}&year_max={vehicle['year']}"
         f"&makes%5B%5D={make_clean}&models%5B%5D={make_clean}-{cars_model_slug}"
-        f"&stock_type=used&include_shippable=false&sort=best_match_desc"
+        f"&include_shippable=false&zip={zip_code}&maximum_distance={radius}"
+        f"&sort=best_match_desc"
     )
 
     v1, v2, v3 = st.columns(3)
@@ -361,6 +362,9 @@ Asking ${target_sale_price:,}. Serious inquiries only. Cash or cashier's check p
     with m_col2:
         st.markdown("##### 📝 Comprehensive Spec & Listing Output:")
         st.text_area("Copy this package directly into your sales channels, CRM, or records:", value=full_marketing_spec, height=450)
+        
+        # NEW MARKETPLACE SHORTCUT BUTTON
+        st.link_button("🚀 Open Facebook Marketplace to Paste & Publish", "https://www.facebook.com/marketplace/create/vehicle", use_container_width=True, type="primary")
 
 else:
     st.info("Enter a VIN, mileage, and ZIP code in the sidebar to load the dynamic bidding dashboard.")
