@@ -67,7 +67,6 @@ def estimate_original_msrp(year: int, make: str):
     luxury_makes = ["LEXUS", "BMW", "MERCEDES", "MERCEDES-BENZ", "AUDI", "ACURA", "INFINITI", "CADILLAC", "LINCOLN", "VOLVO", "LAND ROVER", "PORSCHE"]
     truck_makes = ["GMC", "RAM"]
     
-    # Assign a modern-day base tier
     if make in luxury_makes:
         base = 45000
     elif make in truck_makes:
@@ -78,7 +77,6 @@ def estimate_original_msrp(year: int, make: str):
     current_year = 2026
     age = max(0, current_year - year)
     
-    # Reverse inflation calculator (~2.5% cheaper per year back in time)
     estimated_msrp = base * ((0.975) ** age)
     return estimated_msrp
 
@@ -90,26 +88,23 @@ def calculate_valuations(vehicle: dict, mileage: int):
     
     estimated_msrp = estimate_original_msrp(year, vehicle['make'])
     
-    # Tiered Depreciation Curve
     depreciation_factor = 1.0
     for i in range(1, age + 1):
         if i <= 3:
-            depreciation_factor *= 0.85  # 15% drop early years
+            depreciation_factor *= 0.85
         elif i <= 8:
-            depreciation_factor *= 0.90  # 10% drop mid years
+            depreciation_factor *= 0.90
         else:
-            depreciation_factor *= 0.93  # 7% drop late years
+            depreciation_factor *= 0.93
             
     base_value = estimated_msrp * depreciation_factor
     
-    # Standard mileage adjustment calculation
     expected_mileage = age * 12000
     mileage_diff = mileage - expected_mileage
     mileage_adjustment = mileage_diff * 0.05
     
     adjusted_value = max(1500, base_value - mileage_adjustment)
     
-    # Market Adjusters
     trade_in_low = round(adjusted_value * 0.75)
     trade_in_high = round(adjusted_value * 0.85)
     private_low = round(adjusted_value * 0.95)
@@ -183,18 +178,26 @@ if "vehicle_data" in st.session_state:
 
     make_clean = vehicle['make'].lower().replace(" ", "-")
     model_kbb_slug = vehicle['model'].lower().replace(" ", "-")
+    cars_model_slug = vehicle['model'].lower().replace(" ", "_")
     
-    # 1. FIXED KBB Valuation URL (Bypasses research landing page)
-    kbb_url = f"https://www.kbb.com/{make_clean}/{model_kbb_slug}/{vehicle['year']}/styles/?intent=trade-in-sell"
+    # 1. KBB Valuation URL (Passes Intent, Mileage, and VIN to KBB's router)
+    kbb_url = (
+        f"https://www.kbb.com/{make_clean}/{model_kbb_slug}/{vehicle['year']}/styles/"
+        f"?intent=trade-in-sell&mileage={mileage_input}&vin={curr_vin.lower()}"
+    )
 
-    # 2. FIXED FB Marketplace (Clean Search Query)
+    # 2. FB Marketplace 
     fb_search_query = f"{vehicle['year']} {vehicle['make']} {vehicle['model']}"
     encoded_fb_query = urllib.parse.quote(fb_search_query)
     fb_url = f"https://www.facebook.com/marketplace/search/?query={encoded_fb_query}"
 
-    # 3. FIXED Cars.com Dealer Search (Uses robust Keyword search rather than strict make/model array slugs)
-    encoded_cars_kw = urllib.parse.quote(f"{vehicle['year']} {vehicle['make']} {vehicle['model']}")
-    cars_url = f"https://www.cars.com/shopping/results/?stock_type=used&kw={encoded_cars_kw}&maximum_distance={radius}&zip={zip_code}"
+    # 3. Cars.com Dealer Search
+    cars_url = (
+        f"https://www.cars.com/shopping/results/?"
+        f"zip={zip_code}&maximum_distance={radius}"
+        f"&makes%5B%5D={make_clean}&models%5B%5D={make_clean}-{cars_model_slug}"
+        f"&stock_type=used&include_shippable=false&sort=best_match_desc"
+    )
 
     v1, v2, v3 = st.columns(3)
 
