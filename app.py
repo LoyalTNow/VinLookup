@@ -162,7 +162,6 @@ def calculate_valuations(vehicle: dict, mileage: int):
     private_high = round(adjusted_value * 1.10)
     kbb_private_avg = round((private_low + private_high) / 2)
     
-    # New Estimations for NADA and TrueCar
     nada_clean_retail = round(private_high * 1.05)
     truecar_avg = round(private_high * 1.08)
     
@@ -239,12 +238,8 @@ if "vehicle_data" in st.session_state:
     model_clean = vehicle['model'].lower().replace(" ", "-")
     cars_model_slug = vehicle['model'].lower().replace(" ", "_")
     
-    # URL Generators
-    kbb_url = (
-        f"https://www.kbb.com/vehicles/options/?intent=trade-in-sell"
-        f"&year={vehicle['year']}&make={make_clean}&model={model_clean}"
-        f"&mileage={mileage_input}&vin={curr_vin.lower()}"
-    )
+    # 1. FIXED KBB Valuation URL (Routes to Make/Model/Year landing page to prevent errors)
+    kbb_url = f"https://www.kbb.com/{make_clean}/{model_clean}/{vehicle['year']}/"
     
     nada_url = f"https://www.jdpower.com/cars/{vehicle['year']}/{make_clean}/{model_clean}"
 
