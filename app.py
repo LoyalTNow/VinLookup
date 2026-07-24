@@ -160,11 +160,14 @@ def calculate_valuations(vehicle: dict, mileage: int):
     trade_in_high = round(adjusted_value * 0.85)
     private_low = round(adjusted_value * 0.95)
     private_high = round(adjusted_value * 1.10)
+    
+    # Book Estimations
     kbb_private_avg = round((private_low + private_high) / 2)
-    
     nada_clean_retail = round(private_high * 1.05)
-    truecar_avg = round(private_high * 1.08)
+    edmunds_tmv = round(private_high * 0.98) 
     
+    # Live Market Estimations
+    truecar_avg = round(private_high * 1.08)
     cars_com_avg = round(private_high * 1.10)
     fb_market_avg = round(private_low * 1.02)
     fb_range_low = round(fb_market_avg * 0.92)
@@ -175,6 +178,7 @@ def calculate_valuations(vehicle: dict, mileage: int):
         "kbb_private_party_range": f"${private_low:,} – ${private_high:,}",
         "kbb_private_avg": kbb_private_avg,
         "nada_retail_est": nada_clean_retail,
+        "edmunds_tmv_est": edmunds_tmv,
         "cars_com_avg": cars_com_avg,
         "truecar_avg": truecar_avg,
         "fb_avg": fb_market_avg,
@@ -231,17 +235,17 @@ if "vehicle_data" in st.session_state:
 
     st.divider()
 
-    # 2. 5-WAY VALUATION DASHBOARD
+    # 2. 6-WAY VALUATION DASHBOARD
     st.subheader(f"📊 Market & Book Valuations ({radius}-Mile Radius around {zip_code})")
 
     make_clean = vehicle['make'].lower().replace(" ", "-")
     model_clean = vehicle['model'].lower().replace(" ", "-")
     cars_model_slug = vehicle['model'].lower().replace(" ", "_")
     
-    # 1. FIXED KBB Valuation URL (Routes to Make/Model/Year landing page to prevent errors)
+    # URL Generators
     kbb_url = f"https://www.kbb.com/{make_clean}/{model_clean}/{vehicle['year']}/"
-    
     nada_url = f"https://www.jdpower.com/cars/{vehicle['year']}/{make_clean}/{model_clean}"
+    edmunds_url = f"https://www.edmunds.com/{make_clean}/{model_clean}/{vehicle['year']}/appraisal/"
 
     min_mile = max(0, mileage_input - 15000)
     max_mile = mileage_input + 15000
@@ -267,7 +271,7 @@ if "vehicle_data" in st.session_state:
 
     # Top Row: Official Book Values
     st.markdown("#### 📖 Official Book Values")
-    b1, b2 = st.columns(2)
+    b1, b2, b3 = st.columns(3)
     
     with b1:
         st.info("### 📘 1. KBB Valuation")
@@ -279,9 +283,16 @@ if "vehicle_data" in st.session_state:
     with b2:
         st.info("### 📙 2. NADA / J.D. Power")
         st.write("**Target:** Clean Retail / Dealer Resale")
-        st.write("Provides a baseline for high-end retail valuation.")
+        st.write("Baseline for high-end retail valuation.")
         st.metric("NADA Clean Retail Est.", f"${val['nada_retail_est']:,}")
         st.link_button("🔗 Open NADA Value Tool", nada_url, use_container_width=True)
+        
+    with b3:
+        st.info("### 📗 3. Edmunds")
+        st.write("**Target:** True Market Value®")
+        st.write("Estimated average transaction price.")
+        st.metric("Edmunds TMV® Est.", f"${val['edmunds_tmv_est']:,}")
+        st.link_button("🔗 Open Edmunds Appraisal", edmunds_url, use_container_width=True)
 
     st.markdown("---")
 
