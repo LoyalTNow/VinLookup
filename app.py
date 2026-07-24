@@ -327,7 +327,7 @@ if "vehicle_data" in st.session_state:
     st.subheader(f"🔍 External History & Title Verification Shortcuts")
     st.caption("Quickly verify safety recalls and full title history.")
 
-    h_col1, h_col2 = st.columns(2)
+    h_col1, h_col2, h_col3 = st.columns(3)
 
     with h_col1:
         st.markdown("##### 🛡️ Official Free Verification")
@@ -336,6 +336,11 @@ if "vehicle_data" in st.session_state:
     with h_col2:
         st.markdown("##### 📜 Official Title Records")
         st.link_button("📄 VinAudit Web Title Check", f"https://www.vinaudit.com/report?vin={curr_vin}", use_container_width=True)
+        
+    with h_col3:
+        st.markdown("##### 🆓 Free Alternative Reports")
+        st.link_button("📊 AutoCheck Free Score", "https://www.autocheck.com/vehiclehistory/free-score", use_container_width=True)
+        st.link_button("📑 Carsforsale Free VHR", "https://www.carsforsale.com/free-vehicle-history-reports", use_container_width=True)
 
     st.divider()
 
